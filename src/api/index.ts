@@ -86,6 +86,14 @@ export const api = {
           'Content-Type': 'multipart/form-data',
         },
       }),
+    
+    // 获取用户提交历史
+    getUserSubmissions: (walletAddress: string, page = 0, size = 10) =>
+      apiClient.get(`/api/upload/user/submissions?walletAddress=${walletAddress}&page=${page}&size=${size}`),
+    
+    // 获取提交详情
+    getSubmissionDetail: (id: number) =>
+      apiClient.get(`/api/upload/submission/detail/${id}`),
   },
   
   // 管理员功能

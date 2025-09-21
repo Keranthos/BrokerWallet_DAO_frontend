@@ -33,6 +33,11 @@ const PublicRoutes = {
           component: () => import('@/views/admin/components/MedalRanking.vue')
         },
         {
+          path: 'user-lookup',
+          name: 'UserLookup',
+          component: () => import('@/views/admin/components/UserLookup.vue')
+        },
+        {
           path: 'material-detail/:id',
           name: 'MaterialDetail',
           component: () => import('@/views/admin/components/MaterialDetail.vue')
