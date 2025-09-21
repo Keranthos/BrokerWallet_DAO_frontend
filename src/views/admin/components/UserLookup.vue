@@ -9,28 +9,30 @@
           <v-text-field
             v-model="walletAddress"
             label="钱包地址"
-            placeholder="输入用户的钱包地址..."
+            placeholder="输入用户的钱包地址 (40位十六进制字符)..."
             variant="outlined"
             :loading="searching"
             :disabled="searching"
             @keyup.enter="searchUser"
+            @input="validateWalletAddress"
             prepend-inner-icon="$wallet"
             clearable
+            :error-messages="walletAddressError"
+            :rules="[walletAddressRule]"
           />
         </v-col>
         <v-col cols="12" md="4">
-          <v-btn
-            @click="searchUser"
-            color="primary"
-            size="large"
-            :loading="searching"
-            :disabled="!walletAddress || searching"
-            block
-            class="h-100"
-          >
-            <v-icon left class="mr-2">$magnify</v-icon>
-            查询用户
-          </v-btn>
+            <v-btn
+              @click="searchUser"
+              color="primary"
+              size="large"
+              :loading="searching"
+              :disabled="!walletAddress || searching"
+              block
+              class="h-100"
+            >
+              🔍 查询用户
+            </v-btn>
         </v-col>
       </v-row>
 
@@ -220,6 +222,7 @@ const searching = ref(false)
 const searched = ref(false)
 const loadingSubmissions = ref(false)
 const errorMessage = ref('')
+const walletAddressError = ref('')
 
 const userInfo = ref<any>(null)
 const submissions = ref<any[]>([])
@@ -237,15 +240,57 @@ const headers = [
   { title: '操作', key: 'actions', sortable: false }
 ]
 
+// 钱包地址验证规则
+const walletAddressRule = (value: string) => {
+  if (!value) {
+    return '请输入钱包地址'
+  }
+  
+  // 检查长度（应该是40个字符）
+  if (value.length !== 40) {
+    return '钱包地址应为40位字符'
+  }
+  
+  // 检查是否为十六进制字符
+  const hexPattern = /^[0-9a-fA-F]+$/
+  if (!hexPattern.test(value)) {
+    return '钱包地址只能包含十六进制字符 (0-9, a-f, A-F)'
+  }
+  
+  return true
+}
+
+// 实时验证钱包地址
+const validateWalletAddress = () => {
+  walletAddressError.value = ''
+  
+  if (!walletAddress.value) {
+    return
+  }
+  
+  const result = walletAddressRule(walletAddress.value)
+  if (result !== true) {
+    walletAddressError.value = result
+  }
+}
+
 // 方法
 const searchUser = async () => {
   if (!walletAddress.value || searching.value) {
     return
   }
 
+  // 验证钱包地址格式
+  const validationResult = walletAddressRule(walletAddress.value)
+  if (validationResult !== true) {
+    errorMessage.value = validationResult
+    return
+  }
+
   searching.value = true
   searched.value = false
   errorMessage.value = ''
+  walletAddressError.value = ''
   userInfo.value = null
   submissions.value = []
 
