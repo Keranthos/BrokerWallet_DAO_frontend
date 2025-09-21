@@ -1,0 +1,53 @@
+@import './variables';
+@import 'vuetify/styles/main.sass';
+@import './override';
+
+// 全局字体大小调整
+* {
+  font-size: 16px !important;
+}
+
+.v-application {
+  font-size: 16px !important;
+}
+
+// 增大组件的默认尺寸
+.v-btn {
+  min-height: 48px !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+.v-field {
+  font-size: 16px !important;
+}
+
+.v-field-label {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+.v-card-title {
+  font-size: 24px !important;
+  font-weight: 700 !important;
+}
+
+.v-alert {
+  font-size: 16px !important;
+}
+@import './layout/container';
+@import './layout/sidebar';
+@import './layout/topbar';
+
+@import './components/VButtons';
+@import './components/VCard';
+@import './components/VField';
+@import './components/VInput';
+@import './components/VNavigationDrawer';
+@import './components/VShadow';
+@import './components/VTextField';
+@import './components/VTabs';
+
+@import './pages/dashboards';
+
+@import 'vue3-perfect-scrollbar/style.css';
