@@ -81,10 +81,7 @@
           >
             <!-- 文件名列 -->
             <template v-slot:item.fileName="{ item }">
-              <div class="d-flex align-center">
-                <v-icon class="mr-2" color="primary">$fileDocument</v-icon>
-                <span>{{ item.fileName }}</span>
-              </div>
+              <span class="text-truncate">{{ item.fileName }}</span>
             </template>
 
             <!-- 文件大小列 -->
