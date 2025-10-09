@@ -96,11 +96,43 @@ export const api = {
       apiClient.get(`/api/upload/submission/detail/${id}`),
   },
   
+  // 区块链相关
+  blockchain: {
+    // 铸造NFT
+    mintNft: (data: {
+      ownerAddress: string;
+      name: string;
+      description: string;
+      imageData: string;
+      attributes: string;
+    }) => apiClient.post('/api/blockchain/nft/mint', data),
+    
+    // 查询用户NFT
+    getUserNfts: (address: string, page = 0, size = 10) =>
+      apiClient.get(`/api/blockchain/nft/user/${address}?page=${page}&size=${size}`),
+    
+    // 查询所有NFT
+    getAllNfts: (page = 0, size = 10) =>
+      apiClient.get(`/api/blockchain/nft/all?page=${page}&size=${size}`),
+    
+    // 查询NFT详情
+    getNftDetail: (tokenId: string) =>
+      apiClient.get(`/api/blockchain/nft/detail/${tokenId}`),
+  },
+  
   // 管理员功能
   admin: {
     // 获取待审核用户列表
     getPendingUsers: (page = 1, limit = 10) => 
       apiClient.get(`/api/admin/pending-users?page=${page}&limit=${limit}`),
+    
+    // 获取已审核用户列表
+    getApprovedUsers: (page = 1, limit = 10) => 
+      apiClient.get(`/api/admin/approved-users?page=${page}&limit=${limit}`),
+    
+    // 获取所有用户列表（待审核+已审核）
+    getAllUsers: (page = 1, limit = 10) => 
+      apiClient.get(`/api/admin/all-users?page=${page}&limit=${limit}`),
     
     // 获取单个材料详情
     getMaterialDetail: (id: number) =>

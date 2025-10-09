@@ -100,22 +100,10 @@
               <div class="approval-section">
                 <v-switch
                   v-model="approveRepresentativeWork"
-                  label="管理员同意在排行榜中展示此代表作"
+                  label="管理员同意在排行榜中展示此代表作（将在审核通过时保存）"
                   color="success"
-                  class="mb-4"
+                  class="mb-0"
                 />
-                
-                <v-btn
-                  @click="updateRepresentativeWorkApproval"
-                  color="info"
-                  size="large"
-                  :loading="updatingApproval"
-                  :disabled="!hasRepresentativeWorkChanged"
-                  class="save-btn"
-                >
-                  <v-icon left class="mr-2">$contentSave</v-icon>
-                  保存代表作展示设置
-                </v-btn>
               </div>
             </div>
             
@@ -448,7 +436,6 @@ const loading = ref(true)
 const downloading = ref(false)
 const processing = ref(false)
 const rejecting = ref(false)
-const updatingApproval = ref(false)
 const processResult = ref<{ success: boolean; message: string } | null>(null)
 
 // 图片放大对话框
@@ -463,7 +450,7 @@ const medals = ref({
 
 // 代表作审批
 const approveRepresentativeWork = ref(false)
-const originalApprovalStatus = ref(false)
+const originalApprovalStatus = ref(false)  // 用于检测是否有变化
 
 // NFT铸造选择
 const nftMintChoice = ref('no-mint') // 'user-image' | 'default-style' | 'no-mint'
@@ -531,6 +518,89 @@ const generateDefaultDescription = () => {
   return `${userName}${workType}的NFT纪念证书`
 }
 
+// 生成默认NFT图片（SVG格式，Base64编码）
+const generateDefaultNftImage = () => {
+  const userName = materialData.value.displayName || '用户'
+  const goldCount = medals.value.gold
+  const silverCount = medals.value.silver
+  const bronzeCount = medals.value.bronze
+  
+  // 创建SVG图片
+  const svgContent = `
+    <svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+        </linearGradient>
+      </defs>
+      <rect width="400" height="400" fill="url(#bg)"/>
+      <rect x="20" y="20" width="360" height="360" fill="none" stroke="white" stroke-width="3" rx="20"/>
+      
+      <!-- 标题 -->
+      <text x="200" y="80" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="24" font-weight="bold">
+        科研贡献证明
+      </text>
+      
+      <!-- 用户信息 -->
+      <text x="200" y="140" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="18">
+        ${userName}
+      </text>
+      
+      <!-- 勋章显示 -->
+      <g transform="translate(200, 200)">
+        ${goldCount > 0 ? `<text x="0" y="0" text-anchor="middle" fill="#FFD700" font-family="Arial, sans-serif" font-size="32">🥇</text><text x="0" y="30" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="16">${goldCount}</text>` : ''}
+        ${silverCount > 0 ? `<text x="0" y="60" text-anchor="middle" fill="#C0C0C0" font-family="Arial, sans-serif" font-size="32">🥈</text><text x="0" y="90" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="16">${silverCount}</text>` : ''}
+        ${bronzeCount > 0 ? `<text x="0" y="120" text-anchor="middle" fill="#CD7F32" font-family="Arial, sans-serif" font-size="32">🥉</text><text x="0" y="150" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="16">${bronzeCount}</text>` : ''}
+      </g>
+      
+      <!-- 底部信息 -->
+      <text x="200" y="350" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="14">
+        ${new Date().toLocaleDateString('zh-CN')}
+      </text>
+    </svg>
+  `
+  
+  // 将SVG转换为Base64 - 处理Unicode字符（表情符号）
+  try {
+    // 使用TextEncoder处理Unicode字符，然后转Base64
+    // 这样可以正确编码表情符号🥇🥈🥉
+    const utf8Bytes = new TextEncoder().encode(svgContent)
+    
+    // 将字节数组转为二进制字符串
+    let binaryString = ''
+    for (let i = 0; i < utf8Bytes.length; i++) {
+      binaryString += String.fromCharCode(utf8Bytes[i])
+    }
+    
+    // 使用btoa编码二进制字符串
+    const base64Data = btoa(binaryString)
+    
+    // 验证生成的Base64数据
+    if (!base64Data || base64Data.length === 0) {
+      console.error('SVG转Base64失败')
+      return ''
+    }
+    
+    // 返回完整的data URL
+    const dataUrl = `data:image/svg+xml;base64,${base64Data}`
+    console.log('✅ SVG转Base64成功（支持Unicode），data URL长度:', dataUrl.length)
+    return dataUrl
+    
+  } catch (error) {
+    console.error('❌ SVG编码失败:', error)
+    // 降级方案：使用URL编码
+    try {
+      const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgContent)}`
+      console.warn('⚠️ 使用URL编码降级方案，长度:', dataUrl.length)
+      return dataUrl
+    } catch (fallbackError) {
+      console.error('❌ 降级方案也失败:', fallbackError)
+      return ''
+    }
+  }
+}
+
 // 下载文件
 const downloadFile = async () => {
   downloading.value = true
@@ -559,46 +629,80 @@ const downloadFile = async () => {
   }
 }
 
-// 更新代表作展示审批
-const updateRepresentativeWorkApproval = async () => {
-  updatingApproval.value = true
-  try {
-    const response = await api.admin.approveRepresentativeWork({
-      userId: materialData.value.userId,
-      approved: approveRepresentativeWork.value
-    })
-    
-    if (response.data.success) {
-      originalApprovalStatus.value = approveRepresentativeWork.value
-      processResult.value = {
-        success: true,
-        message: response.data.message
-      }
-    } else {
-      throw new Error(response.data.message || '更新失败')
-    }
-  } catch (error: any) {
-    console.error('更新代表作展示审批失败:', error)
-    processResult.value = {
-      success: false,
-      message: '更新失败: ' + (error.response?.data?.message || error.message)
-    }
-  } finally {
-    updatingApproval.value = false
-  }
-}
+// 更新代表作展示审批（已废弃：现在在审核通过时一起保存）
+// const updateRepresentativeWorkApproval = async () => {
+//   updatingApproval.value = true
+//   try {
+//     const response = await api.admin.approveRepresentativeWork({
+//       userId: materialData.value.userId,
+//       approved: approveRepresentativeWork.value
+//     })
+//     
+//     if (response.data.success) {
+//       originalApprovalStatus.value = approveRepresentativeWork.value
+//       processResult.value = {
+//         success: true,
+//         message: response.data.message
+//       }
+//     } else {
+//       throw new Error(response.data.message || '更新失败')
+//     }
+//   } catch (error: any) {
+//     console.error('更新代表作展示审批失败:', error)
+//     processResult.value = {
+//       success: false,
+//       message: '更新失败: ' + (error.response?.data?.message || error.message)
+//     }
+//   } finally {
+//     updatingApproval.value = false
+//   }
+// }
 
 // 审核通过并处理
 const approveAndProcess = async () => {
   processing.value = true
   try {
-    // 1. 分配勋章
+    // 1. 保存代表作展示设置（如果用户有代表作且设置有变化）
+    console.log('🔍 代表作审批检查:', {
+      representativeWork: materialData.value.representativeWork,
+      hasChanged: hasRepresentativeWorkChanged.value,
+      approveValue: approveRepresentativeWork.value,
+      originalValue: originalApprovalStatus.value,
+      userId: materialData.value.userId
+    })
+    
+    if (materialData.value.representativeWork && hasRepresentativeWorkChanged.value) {
+      try {
+        console.log('📤 发送代表作审批请求:', {
+          userId: materialData.value.userId,
+          approved: approveRepresentativeWork.value
+        })
+        
+        const approvalResponse = await api.admin.approveRepresentativeWork({
+          userId: materialData.value.userId,
+          approved: approveRepresentativeWork.value
+        })
+        
+        console.log('✅ 代表作展示设置已保存:', approvalResponse.data)
+      } catch (error) {
+        console.error('❌ 保存代表作设置失败:', error)
+        console.warn('保存代表作设置失败，继续审核流程:', error)
+        // 不中断审核流程，只是警告
+      }
+    } else {
+      console.log('⏭️ 跳过代表作审批保存:', {
+        reason: !materialData.value.representativeWork ? '用户没有填写代表作' : '设置没有变化'
+      })
+    }
+    
+    // 2. 分配勋章
     const reviewPayload = {
       username: materialData.value.username,
       approve: 1,
       firstnum: medals.value.gold,
       secondnum: medals.value.silver,
       thirdnum: medals.value.bronze,
+      proofFileId: materialData.value.id, // 添加证明文件ID
     }
     
     const reviewResponse = await api.admin.reviewUser(reviewPayload)
@@ -613,39 +717,134 @@ const approveAndProcess = async () => {
       try {
         if (nftMintChoice.value === 'user-image') {
           // 使用用户上传的图片铸造NFT
-          nftMessage = '，将使用用户图片铸造NFT'
-          // 这里可以调用专门的用户图片NFT铸造API
+          // 验证用户是否真的上传了图片
+          const nftImage = materialData.value.nftImage
+          if (!nftImage || !nftImage.imagePath) {
+            throw new Error('用户未上传NFT图片，无法使用用户图片铸造NFT')
+          }
+          
+          // ✅ 新方案：只存储图片路径到链上，不存储完整图片数据
+          // 导入服务器URL配置
+          const { SERVER_URL } = await import('@/config/server')
+          const imageMetadata = {
+            path: nftImage.imagePath,
+            type: nftImage.imageType || 'image/jpeg',
+            size: nftImage.imageSize || 0,
+            storageType: 'backend-server',
+            serverUrl: SERVER_URL
+          }
+          
+          const nftMintData = {
+            ownerAddress: materialData.value.walletAddress,
+            name: nftConfig.value.name || `${materialData.value.displayName}的贡献证明`,
+            description: (nftConfig.value.description && nftConfig.value.description.trim()) || generateDefaultDescription(),
+            imageData: JSON.stringify(imageMetadata), // 只存储图片元数据（路径等）
+            attributes: JSON.stringify({
+              type: 'user-uploaded',
+              author: materialData.value.displayName,
+              contribution: '科研贡献证明',
+              timestamp: materialData.value.uploadTime || new Date().toISOString(),  // ⭐ 使用材料的实际上传时间
+              imageMetadata: imageMetadata // 也在attributes中保存一份
+            })
+          }
+          
+          console.log('🎨 准备铸造NFT (用户图片):', {
+            ownerAddress: nftMintData.ownerAddress,
+            name: nftMintData.name,
+            description: nftMintData.description,
+            imageDataLength: nftMintData.imageData?.length || 0,
+            imageDataPreview: nftMintData.imageData?.substring(0, 50) || 'empty'
+          })
+          
+          const nftResponse = await api.blockchain.mintNft(nftMintData)
+          if (nftResponse.data.success) {
+            nftMessage = '，用户图片NFT铸造成功'
+            console.log('NFT铸造成功:', nftResponse.data)
+          } else {
+            nftMessage = `，NFT铸造失败: ${nftResponse.data.message || '未知错误'}`
+            console.error('NFT铸造失败:', nftResponse.data)
+          }
         } else if (nftMintChoice.value === 'default-style') {
           // 铸造默认样式的NFT
-          const formData = new FormData()
-          formData.append('walletAddress', materialData.value.walletAddress)
-          formData.append('displayName', nftConfig.value.name || '贡献证明NFT')
-          formData.append('representativeWork', nftConfig.value.description || generateDefaultDescription())
-          formData.append('showRepresentativeWork', 'true')
+          const imageData = generateDefaultNftImage()
           
-          // 添加自动生成配置
-          formData.append('authorInfo', autoConfig.value.authorInfo)
-          formData.append('eventType', autoConfig.value.eventType)
-          formData.append('eventDescription', autoConfig.value.eventDescription)
-          formData.append('contributionLevel', autoConfig.value.contributionLevel)
-
-          // 添加空的证明文件（后端要求）
-          const emptyFile = new File([''], 'nft-mint-placeholder.txt', { type: 'text/plain' })
-          formData.append('proofFiles', emptyFile)
-
-          const nftResponse = await api.upload.complete(formData)
-          nftMessage = nftResponse.data.success ? '，默认样式NFT铸造成功' : '，NFT铸造失败'
+          // 验证图片数据生成成功
+          if (!imageData || imageData.length === 0) {
+            throw new Error('生成默认NFT图片失败，图片数据为空')
+          }
+          
+          console.log('✅ 图片数据生成成功，长度:', imageData.length)
+          
+          const nftMintData = {
+            ownerAddress: materialData.value.walletAddress,
+            name: nftConfig.value.name || `${materialData.value.displayName}的贡献证明`,
+            description: (nftConfig.value.description && nftConfig.value.description.trim()) || generateDefaultDescription(),
+            imageData: imageData, // 生成默认样式的图片数据
+            attributes: JSON.stringify({
+              type: 'default-style',
+              author: materialData.value.displayName,
+              contribution: '科研贡献证明',
+              timestamp: materialData.value.uploadTime || new Date().toISOString(),  // ⭐ 使用材料的实际上传时间
+              medals: {
+                gold: medals.value.gold,
+                silver: medals.value.silver,
+                bronze: medals.value.bronze
+              }
+            })
+          }
+          
+          console.log('🎨 准备铸造NFT (默认样式):', {
+            ownerAddress: nftMintData.ownerAddress,
+            name: nftMintData.name,
+            description: nftMintData.description,
+            imageDataLength: nftMintData.imageData?.length || 0,
+            imageDataPreview: nftMintData.imageData?.substring(0, 80) || 'empty',
+            hasDataPrefix: nftMintData.imageData?.startsWith('data:') || false,
+            attributes: nftMintData.attributes
+          })
+          
+          // 验证所有必填字段
+          if (!nftMintData.ownerAddress) {
+            throw new Error('钱包地址为空')
+          }
+          if (!nftMintData.name) {
+            throw new Error('NFT名称为空')
+          }
+          if (!nftMintData.imageData || nftMintData.imageData.length === 0) {
+            throw new Error('图片数据为空')
+          }
+          
+          console.log('✅ 数据验证通过，发送铸造请求...')
+          
+          const nftResponse = await api.blockchain.mintNft(nftMintData)
+          if (nftResponse.data.success) {
+            nftMessage = '，默认样式NFT铸造成功'
+            console.log('NFT铸造成功:', nftResponse.data)
+          } else {
+            nftMessage = `，NFT铸造失败: ${nftResponse.data.message || '未知错误'}`
+            console.error('NFT铸造失败:', nftResponse.data)
+          }
         }
       } catch (nftError) {
-        nftMessage = '，NFT铸造失败'
+        console.error('NFT铸造失败:', nftError)
+        nftMessage = '，NFT铸造失败: ' + (nftError.response?.data?.message || nftError.message)
       }
     } else {
       nftMessage = '，本次未铸造NFT'
     }
 
+    // 构建成功消息
+    let successMessage = `审核完成！为用户分配了 ${medals.value.gold} 金牌、${medals.value.silver} 银牌、${medals.value.bronze} 铜牌${nftMessage}`
+    
+    // 如果保存了代表作设置，添加提示
+    if (materialData.value.representativeWork && hasRepresentativeWorkChanged.value) {
+      const approvalText = approveRepresentativeWork.value ? '已同意' : '未同意'
+      successMessage += `，代表作展示设置已保存（${approvalText}展示）`
+    }
+    
     processResult.value = {
       success: true,
-      message: `审核完成！为用户分配了 ${medals.value.gold} 金牌、${medals.value.silver} 银牌、${medals.value.bronze} 铜牌${nftMessage}`
+      message: successMessage
     }
 
     // 延迟返回列表
@@ -674,6 +873,7 @@ const rejectMaterial = async () => {
       firstnum: 0,
       secondnum: 0,
       thirdnum: 0,
+      proofFileId: materialData.value.id, // 添加证明文件ID
     }
     
     const response = await api.admin.reviewUser(payload)

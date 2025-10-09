@@ -3,8 +3,8 @@ export const API_CONFIG = {
   // 后端API基础URL
   BASE_URL: 'http://localhost:5000',
   
-  // 超时时间（毫秒）
-  TIMEOUT: 10000,
+  // 超时时间（毫秒） - 增加到10分钟以支持大图片NFT铸造
+  TIMEOUT: 600000, // 10分钟 = 600秒 = 600000毫秒
   
   // API端点
   ENDPOINTS: {

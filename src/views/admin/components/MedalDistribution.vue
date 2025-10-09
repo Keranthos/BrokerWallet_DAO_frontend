@@ -24,6 +24,8 @@ const filterStatus = ref('');
 const materials = ref<Material[]>([]);
 const currentPage = ref(1);
 const pageSize = 10;
+const activeTab = ref<'pending' | 'approved' | 'all'>('pending'); // 当前标签页
+const loading = ref(false);
 
 async function fetchMaterials(page = 1) {
   if (!auth.user?.token) {
@@ -31,8 +33,23 @@ async function fetchMaterials(page = 1) {
     return;
   }
 
+  loading.value = true;
   try {
-    const res = await api.admin.getPendingUsers(page, pageSize);
+    let res;
+    // 根据当前标签页调用不同的API
+    switch (activeTab.value) {
+      case 'pending':
+        res = await api.admin.getPendingUsers(page, pageSize);
+        break;
+      case 'approved':
+        res = await api.admin.getApprovedUsers(page, pageSize);
+        break;
+      case 'all':
+        res = await api.admin.getAllUsers(page, pageSize);
+        break;
+      default:
+        res = await api.admin.getPendingUsers(page, pageSize);
+    }
     console.log('接口返回数据:', res.data);
 
     if (res.data.code === 1 && Array.isArray(res.data.users)) {
@@ -56,7 +73,17 @@ async function fetchMaterials(page = 1) {
   } catch (err) {
     console.error('获取材料失败', err);
     materials.value = [];
+  } finally {
+    loading.value = false;
   }
+}
+
+// 切换标签页
+function switchTab(tab: 'pending' | 'approved' | 'all') {
+  if (activeTab.value === tab) return;
+  activeTab.value = tab;
+  currentPage.value = 1;
+  fetchMaterials(1);
 }
 
 const filteredMaterials = computed(() =>
@@ -159,19 +186,42 @@ onMounted(() => fetchMaterials(currentPage.value));
     </div>
 
     <div class="page-header">
-      <h1 class="page-title">🏅 分发勋章 - 待审核材料</h1>
+      <h1 class="page-title">🏅 分发勋章 - 材料审核</h1>
       
-      <div class="filter-section">
-        <label for="statusFilter" class="filter-label">状态筛选：</label>
-        <select v-model="filterStatus" id="statusFilter" class="filter-select">
-          <option value="">全部</option>
-          <option value="待审核">待审核</option>
-          <option value="已通过">已通过</option>
-        </select>
+      <!-- 标签页切换 -->
+      <div class="tabs-section">
+        <button 
+          @click="switchTab('pending')" 
+          :class="['tab-btn', { active: activeTab === 'pending' }]"
+        >
+          📋 待审核
+        </button>
+        <button 
+          @click="switchTab('approved')" 
+          :class="['tab-btn', { active: activeTab === 'approved' }]"
+        >
+          ✅ 已审核
+        </button>
+        <button 
+          @click="switchTab('all')" 
+          :class="['tab-btn', { active: activeTab === 'all' }]"
+        >
+          📚 全部
+        </button>
       </div>
     </div>
 
-    <div class="materials-list">
+    <!-- 加载状态 -->
+    <div v-if="loading" class="loading-state">
+      <p>加载中...</p>
+    </div>
+
+    <!-- 空状态 -->
+    <div v-else-if="materials.length === 0" class="empty-state">
+      <p>暂无{{ activeTab === 'pending' ? '待审核' : activeTab === 'approved' ? '已审核' : '' }}材料</p>
+    </div>
+
+    <div v-else class="materials-list">
       <div
         v-for="material in filteredMaterials"
         :key="material.id"
@@ -229,34 +279,44 @@ onMounted(() => fetchMaterials(currentPage.value));
   text-align: center;
 }
 
-.filter-section {
+/* 标签页样式 */
+.tabs-section {
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 20px;
 }
 
-.filter-label {
+.tab-btn {
+  padding: 12px 24px;
   font-size: 16px;
   font-weight: 600;
-  color: #34495e;
-}
-
-.filter-select {
-  padding: 10px 15px;
-  font-size: 16px;
   border: 2px solid #bdc3c7;
   border-radius: 8px;
   background-color: white;
-  color: #2c3e50;
+  color: #7f8c8d;
   cursor: pointer;
-  transition: border-color 0.3s ease;
+  transition: all 0.3s ease;
 }
 
-.filter-select:focus {
-  outline: none;
+.tab-btn:hover {
+  background-color: #ecf0f1;
+  border-color: #95a5a6;
+}
+
+.tab-btn.active {
+  background-color: #3498db;
+  color: white;
   border-color: #3498db;
+}
+
+/* 加载和空状态样式 */
+.loading-state,
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  font-size: 18px;
+  color: #7f8c8d;
 }
 
 .materials-list {
