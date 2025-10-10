@@ -11,7 +11,19 @@ import {
   mdiMenu,
   mdiMenuOpen,
   mdiClipboardList,
-  mdiTrophy
+  mdiTrophy,
+  mdiMagnify,
+  mdiHelpCircleOutline,
+  mdiHelpCircle,
+  mdiWallet,
+  mdiRefresh,
+  mdiAlertCircle,
+  mdiContentCopy,
+  mdiInformation,
+  mdiAccount,
+  mdiFileSearchOutline,
+  mdiAlert,
+  mdiLightbulb
 } from '@mdi/js';
 
 export const icons = {
@@ -27,5 +39,17 @@ export const icons = {
   menu: mdiMenu,
   menuOpen: mdiMenuOpen,
   clipboardList: mdiClipboardList,
-  trophy: mdiTrophy
+  trophy: mdiTrophy,
+  magnify: mdiMagnify,
+  helpCircleOutline: mdiHelpCircleOutline,
+  helpCircle: mdiHelpCircle,
+  wallet: mdiWallet,
+  refresh: mdiRefresh,
+  alertCircle: mdiAlertCircle,
+  contentCopy: mdiContentCopy,
+  information: mdiInformation,
+  account: mdiAccount,
+  fileSearchOutline: mdiFileSearchOutline,
+  alert: mdiAlert,
+  lightbulb: mdiLightbulb
 };

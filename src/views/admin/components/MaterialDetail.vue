@@ -21,6 +21,72 @@
 
       <v-divider class="my-6" />
 
+      <!-- 后端账户状态提示（如果有错误） -->
+      <v-row v-if="processResult && !processResult.success" class="mb-4">
+        <v-col cols="12">
+          <v-alert
+            type="error"
+            variant="tonal"
+            closable
+            @click:close="processResult = null"
+          >
+            <div class="text-h6 mb-2">⚠️ 操作失败</div>
+            <div>{{ processResult.message }}</div>
+            <div v-if="processResult.message.includes('余额不足')" class="mt-2">
+              <strong>建议：</strong>请为后端账户充值后重试
+            </div>
+            <div v-else-if="processResult.message.includes('连接')" class="mt-2">
+              <strong>建议：</strong>请检查区块链节点是否正常运行
+            </div>
+          </v-alert>
+        </v-col>
+      </v-row>
+
+      <!-- 已审核状态提示 -->
+      <v-row v-if="isAudited" class="mb-6">
+        <v-col cols="12">
+          <v-alert
+            :type="materialData.auditStatusCode === 'APPROVED' ? 'success' : 'error'"
+            variant="tonal"
+            prominent
+            :icon="materialData.auditStatusCode === 'APPROVED' ? '$checkCircle' : '$closeCircle'"
+          >
+            <v-row align="center">
+              <v-col cols="12">
+                <div class="text-h5 mb-3">
+                  {{ auditStatusChinese }}
+                </div>
+                <div v-if="materialData.auditTime" class="text-body-1 mb-2">
+                  <strong>审核时间：</strong>{{ formatDate(materialData.auditTime) }}
+                </div>
+                <div v-if="materialData.medalAwardedDesc" class="text-body-1 mb-2">
+                  <strong>发放勋章：</strong>{{ materialData.medalAwardedDesc }}
+                  <span v-if="materialData.medalAwardTime" class="text-caption ml-2">
+                    (发放时间: {{ formatDate(materialData.medalAwardTime) }})
+                  </span>
+                </div>
+                <div v-if="materialData.tokenAmount" class="text-body-1 mb-2">
+                  <strong>转账金额：</strong>{{ parseFloat(materialData.tokenAmount).toFixed(2) }} BKC
+                  <span v-if="materialData.tokenTransferTxHash" class="text-caption ml-2">
+                    (交易哈希: {{ materialData.tokenTransferTxHash.substring(0, 10) }}...{{ materialData.tokenTransferTxHash.substring(materialData.tokenTransferTxHash.length - 8) }})
+                  </span>
+                </div>
+                <div v-if="materialData.nftImage && materialData.nftImage.mintStatus === 'SUCCESS'" class="text-body-1 mb-2">
+                  <strong>NFT状态：</strong>已铸造
+                  <span v-if="materialData.nftImage.tokenId" class="text-caption ml-2">
+                    (Token ID: {{ materialData.nftImage.tokenId }})
+                  </span>
+                </div>
+                <v-divider class="my-3" />
+                <div class="text-body-2 text-warning">
+                  ⚠️ 此材料已审核完成，不可重复审核。以下内容仅供查看。
+                </div>
+              </v-col>
+            </v-row>
+          </v-alert>
+        </v-col>
+      </v-row>
+
       <!-- 用户基本信息 -->
       <v-row class="mb-8">
         <v-col cols="12">
@@ -30,19 +96,19 @@
             <v-row>
               <v-col cols="12" md="6">
                 <div class="info-item">
-                  <span class="info-label">🔗 钱包地址:</span>
+                  <span class="info-label">钱包地址:</span>
                   <span class="info-value">{{ materialData.walletAddress }}</span>
                 </div>
               </v-col>
               <v-col cols="12" md="6">
                 <div class="info-item">
-                  <span class="info-label">👤 显示名称:</span>
+                  <span class="info-label">显示名称:</span>
                   <span class="info-value">{{ materialData.displayName || '未设置' }}</span>
                 </div>
               </v-col>
               <v-col cols="12">
                 <div class="info-item">
-                  <span class="info-label">⏰ 提交时间:</span>
+                  <span class="info-label">提交时间:</span>
                   <span class="info-value">{{ formatDate(materialData.uploadTime) }}</span>
                 </div>
               </v-col>
@@ -55,13 +121,51 @@
       <v-row class="mb-8">
         <v-col cols="12">
           <v-card variant="outlined" class="pa-6">
-            <v-card-title class="text-h5 mb-4">📄 证明文件</v-card-title>
+            <v-card-title class="text-h5 mb-4">
+              📄 证明文件
+              <span v-if="materialData.proofFileCount > 1" class="text-subtitle-1 ml-2 text-grey">
+                （本次提交包含 {{ materialData.proofFileCount }} 个文件）
+              </span>
+            </v-card-title>
             
-            <div class="file-info">
+            <!-- 显示所有证明文件 -->
+            <div v-if="materialData.proofFiles && materialData.proofFiles.length > 0">
+              <div 
+                v-for="(file, index) in materialData.proofFiles" 
+                :key="file.id"
+                class="file-item mb-4"
+              >
+                <v-card variant="outlined" class="pa-4 file-card">
+                  <div class="file-info">
+                    <div class="file-details">
+                      <p class="font-weight-bold mb-2">文件 {{ index + 1 }}</p>
+                      <p><span class="info-label">文件名:</span> {{ file.originalFilename }}</p>
+                      <p><span class="info-label">文件大小:</span> {{ formatFileSize(file.fileSize) }}</p>
+                      <p><span class="info-label">文件类型:</span> {{ file.fileType || '未知' }}</p>
+                    </div>
+                    
+                    <div class="download-section mt-3">
+                      <v-btn
+                        @click="downloadFileByName(file.fileName, file.originalFilename)"
+                        color="primary"
+                        size="large"
+                        :loading="downloading"
+                      >
+                        <v-icon left class="mr-2">$download</v-icon>
+                        下载文件 {{ index + 1 }}
+                      </v-btn>
+                    </div>
+                  </div>
+                </v-card>
+              </div>
+            </div>
+            
+            <!-- 兼容旧数据（单文件） -->
+            <div v-else class="file-info">
               <div class="file-details">
-                <p><span class="info-label">📎 文件名:</span> {{ materialData.originalFilename }}</p>
-                <p><span class="info-label">📊 文件大小:</span> {{ formatFileSize(materialData.fileSize) }}</p>
-                <p><span class="info-label">📋 文件类型:</span> {{ materialData.fileType || '未知' }}</p>
+                <p><span class="info-label">文件名:</span> {{ materialData.originalFilename }}</p>
+                <p><span class="info-label">文件大小:</span> {{ formatFileSize(materialData.fileSize) }}</p>
+                <p><span class="info-label">文件类型:</span> {{ materialData.fileType || '未知' }}</p>
               </div>
               
               <div class="download-section">
@@ -100,9 +204,11 @@
               <div class="approval-section">
                 <v-switch
                   v-model="approveRepresentativeWork"
-                  label="管理员同意在排行榜中展示此代表作（将在审核通过时保存）"
+                  label="管理员是否同意展示此代表作"
                   color="success"
                   class="mb-0"
+                  :disabled="isAudited"
+                  :readonly="isAudited"
                 />
               </div>
             </div>
@@ -146,9 +252,9 @@
                 </div>
               </div>
               <div class="nft-info">
-                <p><span class="info-label">📎 图片名:</span> {{ materialData.nftImage.originalName }}</p>
-                <p><span class="info-label">📊 图片大小:</span> {{ formatFileSize(materialData.nftImage.imageSize) }}</p>
-                <p><span class="info-label">📋 图片类型:</span> {{ materialData.nftImage.imageType }}</p>
+                <p><span class="info-label">图片名:</span> {{ materialData.nftImage.originalName }}</p>
+                <p><span class="info-label">图片大小:</span> {{ formatFileSize(materialData.nftImage.imageSize) }}</p>
+                <p><span class="info-label">图片类型:</span> {{ materialData.nftImage.imageType }}</p>
               </div>
             </div>
             
@@ -199,7 +305,7 @@
                 <v-card-text>
                   <p class="radio-label mb-3">用户上传了照片，请选择NFT铸造方式：</p>
                   
-                  <v-radio-group v-model="nftMintChoice" class="mt-4">
+                  <v-radio-group v-model="nftMintChoice" class="mt-4" :disabled="isAudited">
                     <v-radio
                       value="user-image"
                       color="primary"
@@ -240,7 +346,7 @@
                 <v-card-text>
                   <p class="radio-label mb-3">用户未上传照片，请选择：</p>
                   
-                  <v-radio-group v-model="nftMintChoice" class="mt-4">
+                  <v-radio-group v-model="nftMintChoice" class="mt-4" :disabled="isAudited">
                     <v-radio
                       value="default-style"
                       color="warning"
@@ -295,6 +401,7 @@
                     label="事件类型"
                     variant="outlined"
                     density="comfortable"
+                    :disabled="isAudited"
                   />
                 </v-col>
                 <v-col cols="12" md="6">
@@ -304,6 +411,7 @@
                     label="贡献等级"
                     variant="outlined"
                     density="comfortable"
+                    :disabled="isAudited"
                   />
                 </v-col>
                 <v-col cols="12">
@@ -314,6 +422,8 @@
                     rows="2"
                     density="comfortable"
                     :placeholder="generateDefaultDescription()"
+                    :disabled="isAudited"
+                    :readonly="isAudited"
                   />
                 </v-col>
                 <v-col cols="12">
@@ -324,6 +434,8 @@
                     rows="2"
                     density="comfortable"
                     placeholder="详细描述相关的贡献事件"
+                    :disabled="isAudited"
+                    :readonly="isAudited"
                   />
                 </v-col>
               </v-row>
@@ -347,6 +459,8 @@
                   min="0"
                   variant="outlined"
                   density="comfortable"
+                  :disabled="isAudited"
+                  :readonly="isAudited"
                 />
               </v-col>
               <v-col cols="12" md="4">
@@ -357,6 +471,8 @@
                   min="0"
                   variant="outlined"
                   density="comfortable"
+                  :disabled="isAudited"
+                  :readonly="isAudited"
                 />
               </v-col>
               <v-col cols="12" md="4">
@@ -367,6 +483,40 @@
                   min="0"
                   variant="outlined"
                   density="comfortable"
+                  :disabled="isAudited"
+                  :readonly="isAudited"
+                />
+              </v-col>
+            </v-row>
+          </v-card>
+        </v-col>
+      </v-row>
+
+      <!-- 代币转账奖励 -->
+      <v-row class="mb-8">
+        <v-col cols="12">
+          <v-card variant="outlined" class="pa-6">
+            <v-card-title class="text-h5 mb-4">💰 BKC代币转账奖励（可选）</v-card-title>
+            
+            <v-alert type="info" variant="tonal" class="mb-4" icon="$information">
+              <span>可以在审核通过时同时转账BKC代币作为额外奖励</span>
+            </v-alert>
+            
+            <v-row>
+              <v-col cols="12">
+                <v-text-field
+                  v-model.number="tokenReward.amount"
+                  label="💎 奖励金额 (BKC)"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  variant="outlined"
+                  density="comfortable"
+                  hint="留空或填0表示不转账"
+                  persistent-hint
+                  suffix="BKC"
+                  :disabled="isAudited"
+                  :readonly="isAudited"
                 />
               </v-col>
             </v-row>
@@ -380,17 +530,25 @@
           <v-card variant="outlined" class="pa-6">
             <v-card-title class="text-h5 mb-4">⚡ 审核操作</v-card-title>
             
+            <v-alert v-if="isAudited" type="warning" variant="tonal" class="mb-4" icon="$alert">
+              <span>此材料已审核，无法进行二次审核操作</span>
+            </v-alert>
+            
+            <v-alert v-else-if="!canApprove" type="info" variant="tonal" class="mb-4" icon="$information">
+              <span>请至少分配一枚勋章才能审核通过</span>
+            </v-alert>
+            
             <div class="action-buttons">
               <v-btn
                 @click="approveAndProcess"
                 color="success"
                 size="x-large"
                 :loading="processing"
-                :disabled="!canApprove"
+                :disabled="!canApprove || isAudited"
                 class="mr-4 action-btn"
               >
                 <v-icon left class="mr-2">$checkCircle</v-icon>
-                审核通过并处理
+                {{ isAudited ? '已审核通过' : '审核通过并处理' }}
               </v-btn>
               
               <v-btn
@@ -398,11 +556,12 @@
                 color="error"
                 size="x-large"
                 :loading="rejecting"
+                :disabled="isAudited"
                 variant="outlined"
                 class="action-btn"
               >
                 <v-icon left class="mr-2">$closeCircle</v-icon>
-                审核拒绝
+                {{ isAudited ? '已审核' : '审核拒绝' }}
               </v-btn>
             </div>
             
@@ -448,6 +607,22 @@ const medals = ref({
   bronze: 0
 })
 
+// 代币转账奖励
+const tokenReward = ref({
+  amount: 0  // Token数量
+})
+
+// 计算wei值
+const tokenRewardInWei = computed(() => {
+  if (!tokenReward.value.amount || tokenReward.value.amount <= 0) {
+    return '0'
+  }
+  // 1 Token = 10^18 wei
+  const amount = tokenReward.value.amount
+  const weiAmount = BigInt(Math.floor(amount * 1e18))
+  return weiAmount.toString()
+})
+
 // 代表作审批
 const approveRepresentativeWork = ref(false)
 const originalApprovalStatus = ref(false)  // 用于检测是否有变化
@@ -479,8 +654,30 @@ const contributionLevelOptions = [
   '初级贡献', '中级贡献', '高级贡献', '专家级贡献', '杰出贡献'
 ]
 
-// 计算属性
+// 是否已审核
+const isAudited = computed(() => {
+  return materialData.value.auditStatusCode && 
+         materialData.value.auditStatusCode !== 'PENDING'
+})
+
+// 状态中文显示（前端转换）
+const auditStatusChinese = computed(() => {
+  const statusCode = materialData.value.auditStatusCode
+  if (statusCode === 'APPROVED') {
+    return '审核通过'
+  } else if (statusCode === 'REJECTED') {
+    return '审核拒绝'
+  } else if (statusCode === 'PENDING') {
+    return '待审核'
+  }
+  return materialData.value.auditStatus || '待审核'
+})
+
+// 计算属性 - 只有未审核且分配了勋章才能审核
 const canApprove = computed(() => {
+  if (isAudited.value) {
+    return false  // 已审核的材料不能再次审核
+  }
   return medals.value.gold > 0 || medals.value.silver > 0 || medals.value.bronze > 0
 })
 
@@ -512,10 +709,76 @@ const formatFileSize = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
+// 下载单个文件（兼容旧数据）
+const downloadFile = async () => {
+  downloading.value = true
+  try {
+    const fileName = materialData.value.objectKey || materialData.value.fileName
+    const originalName = materialData.value.originalFilename
+    await downloadFileByName(fileName, originalName)
+  } finally {
+    downloading.value = false
+  }
+}
+
+// 根据文件名下载文件
+const downloadFileByName = async (fileName: string, originalName: string) => {
+  downloading.value = true
+  try {
+    const downloadUrl = `http://localhost:5000/api/admin/download/${fileName}`
+    console.log('下载文件:', downloadUrl)
+    
+    const response = await fetch(downloadUrl)
+    if (!response.ok) {
+      throw new Error('下载失败')
+    }
+    
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = originalName || fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    
+    console.log('文件下载成功')
+  } catch (error: any) {
+    console.error('下载文件失败:', error)
+    processResult.value = {
+      success: false,
+      message: '下载失败: ' + error.message
+    }
+  } finally {
+    downloading.value = false
+  }
+}
+
 const generateDefaultDescription = () => {
   const userName = materialData.value.displayName || '用户'
   const workType = materialData.value.representativeWork ? '的贡献' : '提交的证明材料'
   return `${userName}${workType}的NFT纪念证书`
+}
+
+const getMedalLevelText = () => {
+  const total = medals.value.gold + medals.value.silver + medals.value.bronze
+  if (medals.value.gold > 0) return '金牌贡献'
+  if (medals.value.silver > 0) return '银牌贡献'
+  if (medals.value.bronze > 0) return '铜牌贡献'
+  return '贡献者'
+}
+
+const buildEventDescription = () => {
+  // 构建事件描述，优先使用用户的代表作，否则使用默认描述
+  if (materialData.value.representativeWork && materialData.value.representativeWork.trim()) {
+    return materialData.value.representativeWork.trim()
+  }
+  
+  // 如果没有代表作，构建一个描述性文本
+  const userName = materialData.value.displayName || '用户'
+  const medalText = getMedalLevelText()
+  return `${userName}为BlockEmulator项目做出了${medalText}，提交了科研贡献证明材料，获得勋章奖励。`
 }
 
 // 生成默认NFT图片（SVG格式，Base64编码）
@@ -598,34 +861,6 @@ const generateDefaultNftImage = () => {
       console.error('❌ 降级方案也失败:', fallbackError)
       return ''
     }
-  }
-}
-
-// 下载文件
-const downloadFile = async () => {
-  downloading.value = true
-  try {
-    const response = await api.admin.downloadFile(materialData.value.objectKey)
-    
-    const blob = new Blob([response.data])
-    const link = document.createElement('a')
-    link.href = window.URL.createObjectURL(blob)
-    link.download = materialData.value.originalFilename
-    link.click()
-    window.URL.revokeObjectURL(link.href)
-    
-    processResult.value = {
-      success: true,
-      message: '文件下载成功'
-    }
-  } catch (error: any) {
-    console.error('下载失败:', error)
-    processResult.value = {
-      success: false,
-      message: '文件下载失败: ' + (error.response?.data?.message || error.message)
-    }
-  } finally {
-    downloading.value = false
   }
 }
 
@@ -765,21 +1000,34 @@ const approveAndProcess = async () => {
             console.error('NFT铸造失败:', nftResponse.data)
           }
         } else if (nftMintChoice.value === 'default-style') {
-          // 铸造默认样式的NFT
-          const imageData = generateDefaultNftImage()
+          // 铸造默认样式的NFT - 调用后端生成图片（使用contract项目的样式）
+          console.log('🎨 调用后端生成默认样式NFT图片')
           
-          // 验证图片数据生成成功
-          if (!imageData || imageData.length === 0) {
-            throw new Error('生成默认NFT图片失败，图片数据为空')
+          // 构建完整的NFT图片生成参数
+          const imageGenParams = {
+            authorInfo: materialData.value.displayName || '匿名用户',
+            eventType: '科研贡献证明',
+            eventDescription: buildEventDescription(),
+            contributionLevel: getMedalLevelText(),
+            timestamp: materialData.value.uploadTime || new Date().toISOString()
           }
           
-          console.log('✅ 图片数据生成成功，长度:', imageData.length)
+          console.log('📝 默认NFT图片参数:', imageGenParams)
+          
+          const imageGenerationResponse = await api.admin.generateDefaultNftImage(imageGenParams)
+          
+          if (!imageGenerationResponse.data.success || !imageGenerationResponse.data.imageData) {
+            throw new Error('生成默认NFT图片失败: ' + (imageGenerationResponse.data.message || '未知错误'))
+          }
+          
+          const imageData = imageGenerationResponse.data.imageData
+          console.log('✅ 后端图片生成成功，长度:', imageData.length)
           
           const nftMintData = {
             ownerAddress: materialData.value.walletAddress,
             name: nftConfig.value.name || `${materialData.value.displayName}的贡献证明`,
             description: (nftConfig.value.description && nftConfig.value.description.trim()) || generateDefaultDescription(),
-            imageData: imageData, // 生成默认样式的图片数据
+            imageData: imageData, // 使用后端生成的图片数据
             attributes: JSON.stringify({
               type: 'default-style',
               author: materialData.value.displayName,
@@ -833,8 +1081,48 @@ const approveAndProcess = async () => {
       nftMessage = '，本次未铸造NFT'
     }
 
+    // 3. 转账代币奖励（如果有）
+    let transferMessage = ''
+    if (tokenReward.value.amount && tokenReward.value.amount > 0) {
+      try {
+        console.log('💰 开始转账代币奖励:', {
+          toAddress: materialData.value.walletAddress,
+          amount: tokenRewardInWei.value
+        })
+        
+        const transferResponse = await api.admin.transferReward({
+          toAddress: materialData.value.walletAddress,
+          amount: tokenRewardInWei.value
+        })
+        
+        if (transferResponse.data.success) {
+          transferMessage = `，转账 ${tokenReward.value.amount} BKC 成功`
+          console.log('✅ 转账成功:', transferResponse.data)
+          
+          // 保存BKC奖励到数据库
+          try {
+            await api.admin.saveTokenReward({
+              proofFileId: materialData.value.id,
+              tokenReward: tokenReward.value.amount,
+              txHash: transferResponse.data.transactionHash
+            })
+            console.log('✅ BKC奖励已保存到数据库')
+          } catch (saveError) {
+            console.error('❌ 保存BKC奖励到数据库失败:', saveError)
+            // 不影响主流程，只记录日志
+          }
+        } else {
+          transferMessage = `，转账失败: ${transferResponse.data.message}`
+          console.error('❌ 转账失败:', transferResponse.data)
+        }
+      } catch (transferError) {
+        console.error('❌ 转账异常:', transferError)
+        transferMessage = '，转账失败: ' + (transferError.response?.data?.message || transferError.message)
+      }
+    }
+
     // 构建成功消息
-    let successMessage = `审核完成！为用户分配了 ${medals.value.gold} 金牌、${medals.value.silver} 银牌、${medals.value.bronze} 铜牌${nftMessage}`
+    let successMessage = `审核完成！为用户分配了 ${medals.value.gold} 金牌、${medals.value.silver} 银牌、${medals.value.bronze} 铜牌${nftMessage}${transferMessage}`
     
     // 如果保存了代表作设置，添加提示
     if (materialData.value.representativeWork && hasRepresentativeWorkChanged.value) {
@@ -956,6 +1244,31 @@ const loadMaterialDetail = async () => {
       approveRepresentativeWork.value = materialData.value.adminApprovedDisplay || false
       originalApprovalStatus.value = materialData.value.adminApprovedDisplay || false
       
+      // ✅ 如果已审核，恢复之前的审核数据
+      if (materialData.value.auditStatusCode !== 'PENDING') {
+        // 恢复勋章分配
+        if (materialData.value.medalAwarded) {
+          const medalType = materialData.value.medalAwarded
+          if (medalType === 'GOLD') {
+            medals.value.gold = 1
+          } else if (medalType === 'SILVER') {
+            medals.value.silver = 1
+          } else if (medalType === 'BRONZE') {
+            medals.value.bronze = 1
+          }
+        }
+        
+        // 恢复Token转账金额（tokenAmount已经是BKC单位，不是wei）
+        if (materialData.value.tokenAmount) {
+          tokenReward.value.amount = parseFloat(materialData.value.tokenAmount)
+        }
+        
+        // 恢复NFT铸造状态
+        if (materialData.value.nftImage && materialData.value.nftImage.mintStatus === 'SUCCESS') {
+          nftMintChoice.value = 'user-image'
+        }
+      }
+      
     } else {
       throw new Error(response.data.message || '获取材料详情失败')
     }
@@ -1027,6 +1340,11 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.file-card {
+  background-color: white !important;
+  border: 1px solid #d0d0d0 !important;
 }
 
 .file-details {
@@ -1207,5 +1525,74 @@ onMounted(() => {
   .action-buttons .v-btn {
     width: 100%;
   }
+}
+
+/* 已审核状态下的只读字段样式 - 保持正常颜色不变灰 */
+:deep(.v-input--disabled),
+:deep(.v-input--disabled *) {
+  color: rgba(0, 0, 0, 0.87) !important;
+}
+
+:deep(.v-field--disabled .v-field__input) {
+  opacity: 1 !important;
+  color: rgba(0, 0, 0, 0.87) !important;
+  -webkit-text-fill-color: rgba(0, 0, 0, 0.87) !important;
+}
+
+:deep(.v-field--disabled .v-label) {
+  opacity: 1 !important;
+  color: rgba(0, 0, 0, 0.6) !important;
+}
+
+:deep(.v-field--disabled) {
+  opacity: 1 !important;
+  background-color: rgba(0, 0, 0, 0.02) !important;
+}
+
+:deep(.v-radio--disabled .v-label),
+:deep(.v-switch--disabled .v-label) {
+  opacity: 1 !important;
+  color: rgba(0, 0, 0, 0.87) !important;
+}
+
+/* 开关组件在禁用时保持颜色 */
+:deep(.v-switch--disabled .v-switch__thumb) {
+  opacity: 1 !important;
+}
+
+:deep(.v-switch--disabled .v-switch__track) {
+  opacity: 0.8 !important;
+}
+
+/* 当开关被选中且禁用时，保持绿色 */
+:deep(.v-switch--disabled.v-switch--dirty .v-switch__track) {
+  background-color: rgb(var(--v-theme-success)) !important;
+  opacity: 0.8 !important;
+}
+
+:deep(.v-switch--disabled.v-switch--dirty .v-switch__thumb) {
+  background-color: rgb(var(--v-theme-success)) !important;
+  opacity: 1 !important;
+}
+
+/* 针对选中状态的备用样式 */
+:deep(.v-switch.v-input--disabled .v-selection-control--dirty .v-switch__track) {
+  background-color: #4caf50 !important;
+  opacity: 0.8 !important;
+}
+
+:deep(.v-switch.v-input--disabled .v-selection-control--dirty .v-switch__thumb) {
+  background-color: #4caf50 !important;
+  opacity: 1 !important;
+}
+
+:deep(.v-field--disabled .v-field__outline) {
+  opacity: 0.6 !important;
+}
+
+/* 确保下拉选择器的选中项清晰可见 */
+:deep(.v-select--disabled .v-field__input input) {
+  color: rgba(0, 0, 0, 0.87) !important;
+  -webkit-text-fill-color: rgba(0, 0, 0, 0.87) !important;
 }
 </style>

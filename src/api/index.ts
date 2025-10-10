@@ -153,6 +153,32 @@ export const api = {
       approved: boolean;
     }) => apiClient.post('/api/admin/approve-representative-work', data),
     
+    // 转账代币奖励
+    transferReward: (data: {
+      toAddress: string;
+      amount: string;
+    }) => apiClient.post('/api/admin/transfer-reward', data),
+    
+    // 保存代币奖励到数据库
+    saveTokenReward: (data: {
+      proofFileId: number;
+      tokenReward: number;
+      txHash: string;
+    }) => apiClient.post('/api/admin/save-token-reward', data),
+    
+    // 生成默认样式NFT图片
+    generateDefaultNftImage: (data: {
+      authorInfo: string;
+      eventType: string;
+      eventDescription: string;
+      contributionLevel: string;
+      timestamp: string;
+    }) => apiClient.post('/api/admin/generate-default-nft-image', data),
+    
+    // 按花名查询用户
+    searchByDisplayName: (displayName: string) =>
+      apiClient.get(`/api/admin/search-by-display-name?displayName=${encodeURIComponent(displayName)}`),
+    
     // 下载文件
     downloadFile: (objectKey: string) => 
       apiClient.get(`/api/admin/download/${encodeURIComponent(objectKey)}`, {
@@ -161,6 +187,9 @@ export const api = {
     
     // 获取审核统计
     getStats: () => apiClient.get('/api/admin/stats'),
+    
+    // 检查后端账户状态
+    checkAccountStatus: () => apiClient.get('/api/admin/account-status'),
   },
 };
 

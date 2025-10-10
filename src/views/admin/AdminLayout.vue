@@ -9,7 +9,8 @@ const route = useRoute();
 const menuItems = [
   { title: '📋 审核材料', path: '/admin/medal-distribution', icon: '$clipboardList' },
   { title: '🏆 勋章排行榜', path: '/admin/medal-ranking', icon: '$trophy' },
-  { title: '🔍 用户查询', path: '/admin/user-lookup', icon: '$accountSearch' },
+  { title: '🔍 用户查询', path: '/admin/user-lookup', icon: '$magnify' },
+  { title: '💼 账户状态', path: '/admin/account-status', icon: '$wallet' },
 ];
 
 const activePath = ref(route.path);

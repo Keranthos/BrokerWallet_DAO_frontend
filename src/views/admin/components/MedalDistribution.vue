@@ -10,6 +10,7 @@ interface Material {
   email: string;
   fileUrl: string;
   status: string;
+  statusCode: string; // PENDING, APPROVED, REJECTED
   submittedAt: string;
   medals: { gold: number; silver: number; bronze: number };
   username: string;
@@ -24,8 +25,11 @@ const filterStatus = ref('');
 const materials = ref<Material[]>([]);
 const currentPage = ref(1);
 const pageSize = 10;
+const totalPages = ref(1); // 总页数
+const totalCount = ref(0); // 总记录数
 const activeTab = ref<'pending' | 'approved' | 'all'>('pending'); // 当前标签页
 const loading = ref(false);
+const searchQuery = ref(''); // 搜索关键词
 
 async function fetchMaterials(page = 1) {
   if (!auth.user?.token) {
@@ -53,21 +57,48 @@ async function fetchMaterials(page = 1) {
     console.log('接口返回数据:', res.data);
 
     if (res.data.code === 1 && Array.isArray(res.data.users)) {
-      materials.value = res.data.users.map((u: any, index: number) => ({
-        id: u.id || (page - 1) * pageSize + index + 1,
-        title: u.originalFilename || u.displayName || '未知文件',
-        email: u.username || u.displayName || '未知用户',
-        walletAddress: u.walletAddress || u.email || '未知地址',
-        fileUrl: `/api/admin/download/${encodeURIComponent(u.objectKey || u.fileName)}`,
-        status: u.auditStatus || '待审核',
-        submittedAt: u.uploadTime || new Date().toISOString().split('T')[0],
-        medals: { gold: 0, silver: 0, bronze: 0 },
-        username: u.username || u.walletAddress,
-        fileSize: u.fileSize || 0,
-      }));
+      materials.value = res.data.users.map((u: any, index: number) => {
+        // 根据文件数量决定标题显示（与手机端保持一致）
+        let title = u.originalFilename || u.displayName || '未知文件';
+        if (u.fileCount && u.fileCount > 1) {
+          title = `${title} 等 ${u.fileCount} 个文件`;
+        }
+        
+        // 将英文状态码转换为中文显示
+        const statusCode = u.auditStatusCode || 'PENDING';
+        let statusText = '待审核';
+        if (statusCode === 'APPROVED') {
+          statusText = '审核通过';
+        } else if (statusCode === 'REJECTED') {
+          statusText = '审核拒绝';
+        } else if (statusCode === 'PENDING') {
+          statusText = '待审核';
+        }
+        
+        return {
+          id: u.id || (page - 1) * pageSize + index + 1,
+          title: title,
+          email: u.username || u.displayName || '未知用户',
+          walletAddress: u.walletAddress || u.email || '未知地址',
+          fileUrl: `/api/admin/download/${encodeURIComponent(u.objectKey || u.fileName)}`,
+          status: statusText,  // 使用前端转换的中文状态
+          statusCode: statusCode,
+          submittedAt: u.uploadTime || new Date().toISOString().split('T')[0],
+          medals: { gold: 0, silver: 0, bronze: 0 },
+          username: u.username || u.walletAddress,
+          fileSize: u.fileSize || 0,
+        };
+      });
       currentPage.value = page;
+      
+      // 保存分页信息
+      totalPages.value = res.data.totalPages || 1;
+      totalCount.value = res.data.total || 0;
+      console.log(`分页信息: 当前第${page}页, 共${totalPages.value}页, 总计${totalCount.value}条记录`);
     } else {
       materials.value = [];
+      totalPages.value = 1;
+      totalCount.value = 0;
       console.warn('未获取到待审核材料');
     }
   } catch (err) {
@@ -86,11 +117,25 @@ function switchTab(tab: 'pending' | 'approved' | 'all') {
   fetchMaterials(1);
 }
 
-const filteredMaterials = computed(() =>
-  filterStatus.value
-    ? materials.value.filter((m) => m.status === filterStatus.value)
-    : materials.value
-);
+const filteredMaterials = computed(() => {
+  let filtered = materials.value;
+  
+  // 按状态过滤
+  if (filterStatus.value) {
+    filtered = filtered.filter((m) => m.status === filterStatus.value);
+  }
+  
+  // 按花名搜索
+  if (searchQuery.value && searchQuery.value.trim()) {
+    const query = searchQuery.value.trim().toLowerCase();
+    filtered = filtered.filter((m) => 
+      m.email?.toLowerCase().includes(query) || 
+      m.walletAddress?.toLowerCase().includes(query)
+    );
+  }
+  
+  return filtered;
+});
 
 async function downloadFile(url: string) {
   if (!auth.user?.token) return;
@@ -142,11 +187,15 @@ async function submitMedals(material: Material) {
 }
 
 function prevPage() {
-  if (currentPage.value > 1) fetchMaterials(currentPage.value - 1);
+  if (currentPage.value > 1) {
+    fetchMaterials(currentPage.value - 1);
+  }
 }
 
 function nextPage() {
-  if (materials.value.length === pageSize) fetchMaterials(currentPage.value + 1);
+  if (currentPage.value < totalPages.value) {
+    fetchMaterials(currentPage.value + 1);
+  }
 }
 
 // 回到登录页面
@@ -169,6 +218,16 @@ function formatFileSize(bytes: number) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
+// 搜索输入处理
+function onSearchInput() {
+  // 实时过滤，不需要额外操作
+  console.log('搜索关键词:', searchQuery.value);
+}
+
+// 清除搜索
+function clearSearch() {
+  searchQuery.value = '';
+}
 
 onMounted(() => fetchMaterials(currentPage.value));
 </script>
@@ -209,6 +268,24 @@ onMounted(() => fetchMaterials(currentPage.value));
           📚 全部
         </button>
       </div>
+      
+      <!-- 搜索框 -->
+      <div class="search-section">
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="🔍 按用户花名搜索..."
+          class="search-input"
+          @input="onSearchInput"
+        />
+        <button 
+          v-if="searchQuery"
+          @click="clearSearch"
+          class="clear-btn"
+        >
+          ✕ 清除
+        </button>
+      </div>
     </div>
 
     <!-- 加载状态 -->
@@ -234,7 +311,9 @@ onMounted(() => fetchMaterials(currentPage.value));
             <div class="material-details">
               <p class="material-detail"><span class="label">👤 用户:</span> {{ material.email }}</p>
               <p class="material-detail"><span class="label">📊 状态:</span> 
-                <span :class="['status-badge', material.status === '待审核' ? 'pending' : 'approved']">
+                <span :class="['status-badge', 
+                  material.statusCode === 'PENDING' ? 'pending' : 
+                  material.statusCode === 'APPROVED' ? 'approved' : 'rejected']">
                   {{ material.status }}
                 </span>
               </p>
@@ -258,10 +337,10 @@ onMounted(() => fetchMaterials(currentPage.value));
       </div>
     </div>
 
-    <div style="margin-top: 16px; display: flex; justify-content: center; gap: 10px;">
-      <button @click="prevPage" :disabled="currentPage <= 1">上一页</button>
-      <span>第 {{ currentPage }} 页</span>
-      <button @click="nextPage" :disabled="materials.length < pageSize">下一页</button>
+    <div style="margin-top: 16px; display: flex; justify-content: center; align-items: center; gap: 10px;">
+      <button @click="prevPage" :disabled="currentPage <= 1" class="pagination-btn">上一页</button>
+      <span class="pagination-info">第 {{ currentPage }} 页 / 共 {{ totalPages }} 页（总计 {{ totalCount }} 条）</span>
+      <button @click="nextPage" :disabled="currentPage >= totalPages" class="pagination-btn">下一页</button>
     </div>
   </div>
 </template>
@@ -285,6 +364,51 @@ onMounted(() => fetchMaterials(currentPage.value));
   justify-content: center;
   gap: 10px;
   margin-bottom: 20px;
+}
+
+/* 搜索框样式 */
+.search-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.search-input {
+  width: 400px;
+  padding: 12px 16px;
+  font-size: 16px;
+  border: 2px solid #3498db;
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.search-input:focus {
+  border-color: #2980b9;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.search-input::placeholder {
+  color: #95a5a6;
+}
+
+.clear-btn {
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #e74c3c;
+  background-color: white;
+  border: 2px solid #e74c3c;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.clear-btn:hover {
+  background-color: #e74c3c;
+  color: white;
 }
 
 .tab-btn {
@@ -403,6 +527,12 @@ onMounted(() => fetchMaterials(currentPage.value));
   border: 1px solid #c3e6cb;
 }
 
+.status-badge.rejected {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
 .download-btn {
   padding: 12px 20px;
   background: linear-gradient(135deg, #3498db, #2980b9);
@@ -500,6 +630,40 @@ onMounted(() => fetchMaterials(currentPage.value));
   opacity: 0.7;
   transition: opacity 0.3s ease;
   font-weight: 500;
+}
+
+/* 分页样式 */
+.pagination-btn {
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2980b9, #21618c);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+}
+
+.pagination-btn:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+  box-shadow: none;
+  opacity: 0.6;
+}
+
+.pagination-info {
+  font-size: 16px;
+  font-weight: 600;
+  color: #34495e;
+  padding: 0 20px;
 }
 
 </style>
