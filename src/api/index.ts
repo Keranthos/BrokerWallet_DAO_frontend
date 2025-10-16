@@ -11,22 +11,13 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,  // 重要：允许携带Cookie和Session
 });
 
-// 请求拦截器 - 添加认证token
+// 请求拦截器（Session模式下不需要手动添加token，由浏览器自动携带Cookie）
 apiClient.interceptors.request.use(
   (config) => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        if (user.token) {
-          config.headers.Authorization = `Bearer ${user.token}`;
-        }
-      } catch (error) {
-        console.error('解析用户信息失败:', error);
-      }
-    }
+    // Session会通过Cookie自动携带，无需手动添加
     return config;
   },
   (error) => {
@@ -34,16 +25,21 @@ apiClient.interceptors.request.use(
   }
 );
 
-// 响应拦截器 - 处理错误
+// 响应拦截器 - 处理401未授权错误
 apiClient.interceptors.response.use(
   (response) => {
     return response;
   },
   (error) => {
     if (error.response?.status === 401) {
-      // Token过期或无效，清除本地存储并跳转到登录页
+      // Session过期或未登录，清除本地存储并跳转到登录页
+      console.warn('会话已过期或未登录，正在跳转到登录页...');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      
+      // 避免重复跳转
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -191,6 +187,27 @@ export const api = {
     
     // 检查后端账户状态
     checkAccountStatus: () => apiClient.get('/api/admin/account-status'),
+  },
+  
+  // 认证相关
+  auth: {
+    // 管理员登录
+    login: (data: { username: string; password: string }) =>
+      apiClient.post('/api/auth/login', data),
+    
+    // 创建新管理员
+    register: (data: { 
+      newUsername: string; 
+      newPassword: string; 
+      creatorUsername: string; 
+      creatorPassword: string 
+    }) => apiClient.post('/api/auth/register', data),
+    
+    // 登出
+    logout: () => apiClient.post('/api/auth/logout'),
+    
+    // 获取当前登录的管理员信息
+    getCurrentAdmin: () => apiClient.get('/api/auth/current'),
   },
 };
 

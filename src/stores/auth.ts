@@ -17,19 +17,18 @@ export const useAuthStore = defineStore({
 
   actions: {
     /**
-     * 登录
-     * @param data 后端返回的数据 { code, token, user }
+     * 登录成功（Session模式）
+     * @param data 后端返回的数据 { user }
      */
-    loginSuccess(data: { token: string; user: any }) {
-      // 保存用户信息到 Pinia
+    loginSuccess(data: { user: any }) {
+      // 保存用户基本信息到 Pinia（Session由Cookie自动管理）
       this.user = {
         id: data.user?.id ?? 0,
         name: data.user?.name ?? '管理员',
         role: 'admin', // 只允许管理员登录
-        token: data.token
       };
 
-      // 同步到 localStorage
+      // 同步到 localStorage（仅用于前端展示，不含敏感信息）
       localStorage.setItem('user', JSON.stringify(this.user));
 
       // 直接跳转到管理员界面
@@ -39,7 +38,18 @@ export const useAuthStore = defineStore({
     /**
      * 登出
      */
-    logout() {
+    async logout() {
+      try {
+        // 调用后端登出API清除Session
+        await fetch('http://localhost:5000/api/auth/logout', {
+          method: 'POST',
+          credentials: 'include'
+        });
+      } catch (error) {
+        console.error('登出API调用失败:', error);
+      }
+      
+      // 清除本地状态
       this.user = null;
       localStorage.removeItem('user');
       router.push('/login');

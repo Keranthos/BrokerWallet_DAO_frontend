@@ -94,10 +94,11 @@ const handleLogin = async () => {
   error.value = ''
 
   try {
-    // 调用真实的登录API
+    // 调用真实的登录API（使用fetch以便携带credentials）
     const res = await fetch('http://localhost:5000/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',  // 重要：携带和保存Cookie
       body: JSON.stringify({
         username: username.value,
         password: password.value
@@ -106,13 +107,10 @@ const handleLogin = async () => {
 
     const data = await res.json()
 
-    if (data.code === 1 && data.token) {
-      // 保存token到localStorage
-      localStorage.setItem('token', String(data.token))
-      
-      // 登录成功，保存用户信息
+    if (data.code === 1 && data.success) {
+      // Session模式下不需要手动保存token，Cookie会自动保存
+      // 只需保存用户基本信息用于前端展示
       auth.loginSuccess({
-        token: data.token,
         user: {
           id: data.user.id,
           name: data.user.displayName || data.user.username,
