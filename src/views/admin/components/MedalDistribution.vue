@@ -32,8 +32,8 @@ const loading = ref(false);
 const searchQuery = ref(''); // 搜索关键词
 
 async function fetchMaterials(page = 1) {
-  if (!auth.user?.token) {
-    console.warn('未登录或 token 为空');
+  if (!auth.user) {
+    console.warn('未登录');
     return;
   }
 
@@ -138,7 +138,7 @@ const filteredMaterials = computed(() => {
 });
 
 async function downloadFile(url: string) {
-  if (!auth.user?.token) return;
+  if (!auth.user) return;
 
   try {
     const objectKey = url.split('/').pop();
@@ -161,7 +161,7 @@ async function downloadFile(url: string) {
 
 
 async function submitMedals(material: Material) {
-  if (!auth.user?.token) return;
+  if (!auth.user) return;
 
   try {
     const payload = {

@@ -11,54 +11,9 @@ import VueTablerIcons from 'vue-tabler-icons';
 // ❌ 已移除 fakeBackend
 import print from 'vue3-print-nb';
 
-import axios, { AxiosHeaders } from 'axios';
-
-// 可选：从环境变量设置后端地址（Vite：.env 里配置 VITE_API_BASE=/api 或 http://localhost:8080）
-axios.defaults.baseURL = import.meta.env?.VITE_API_BASE || axios.defaults.baseURL || '';
-
-// 仅在开发环境打印调试信息
-const isDev = !!import.meta.env?.DEV;
-
-// —— 读取并清洗 token（不加 Bearer，不加引号）——
-function getCleanToken(): string {
-  let t = localStorage.getItem('token') ?? '';
-  t = t.trim();
-  if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
-    t = t.slice(1, -1);
-  }
-  if (t.startsWith('Bearer ')) t = t.slice(7);
-  return t;
-}
-
-// —— 请求拦截器：为每个请求注入 Authorization ——
-// 这里用 AxiosHeaders，避免“不能分配给 AxiosRequestHeaders”的类型报错
-axios.interceptors.request.use((config) => {
-  const t = getCleanToken();
-  if (t) {
-    (config.headers ??= new AxiosHeaders()).set('Authorization', `Bearer ${t}`);
-    if (isDev) {
-      const auth = (config.headers as AxiosHeaders).get('Authorization') || '';
-      console.log('[REQ AUTH]', String(auth).slice(0, 60) + '...');
-    }
-  } else if (isDev) {
-    console.log('[REQ AUTH] (no token)');
-  }
-  return config;
-});
-
-// —— 响应拦截器：统一处理 401 —— 
-axios.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    if (err?.response?.status === 401) {
-      console.warn('未授权或 token 失效，请重新登录');
-      // 这里按需跳转登录或清理本地 token
-      // localStorage.removeItem('token');
-      // router.push('/login');
-    }
-    return Promise.reject(err);
-  }
-);
+// 注意：项目已改用Session认证，不再使用Token
+// 所有API请求通过 src/api/index.ts 的 apiClient 实例
+// apiClient 已配置 withCredentials: true 以自动携带Session Cookie
 
 const app = createApp(App);
 app.use(router);

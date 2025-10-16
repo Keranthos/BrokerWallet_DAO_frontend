@@ -728,7 +728,9 @@ const downloadFileByName = async (fileName: string, originalName: string) => {
     const downloadUrl = `http://localhost:5000/api/admin/download/${fileName}`
     console.log('下载文件:', downloadUrl)
     
-    const response = await fetch(downloadUrl)
+    const response = await fetch(downloadUrl, {
+      credentials: 'include'  // 🔑 携带Cookie以通过Session认证
+    })
     if (!response.ok) {
       throw new Error('下载失败')
     }
@@ -1005,10 +1007,15 @@ const approveAndProcess = async () => {
           console.log('🎨 调用后端生成默认样式NFT图片')
           
           // 构建完整的NFT图片生成参数
+          // 事件描述：如果管理员填写了就用管理员填写的，否则用"暂无"
+          const eventDesc = autoConfig.value.eventDescription && autoConfig.value.eventDescription.trim() 
+                           ? autoConfig.value.eventDescription.trim() 
+                           : '暂无'
+          
           const imageGenParams = {
             authorInfo: materialData.value.displayName || '匿名用户',
             eventType: '科研贡献证明',
-            eventDescription: buildEventDescription(),
+            eventDescription: eventDesc,
             contributionLevel: getMedalLevelText(),
             timestamp: materialData.value.uploadTime || new Date().toISOString()
           }

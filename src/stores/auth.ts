@@ -5,7 +5,7 @@ interface User {
   id: number;
   name: string;
   role?: string; // admin / user
-  token?: string; // 保存后端返回的 JWT
+  // Session模式下不再需要token字段，认证通过Cookie自动管理
 }
 
 export const useAuthStore = defineStore({
