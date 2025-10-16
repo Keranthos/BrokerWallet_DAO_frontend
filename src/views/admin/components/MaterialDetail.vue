@@ -980,7 +980,8 @@ const approveAndProcess = async () => {
               contribution: '科研贡献证明',
               timestamp: materialData.value.uploadTime || new Date().toISOString(),  // ⭐ 使用材料的实际上传时间
               imageMetadata: imageMetadata // 也在attributes中保存一份
-            })
+            }),
+            nftImageId: nftImage.id  // ⭐ 传递NFT记录ID，用于更新数据库
           }
           
           console.log('🎨 准备铸造NFT (用户图片):', {

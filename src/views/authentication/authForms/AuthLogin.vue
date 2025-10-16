@@ -5,7 +5,6 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 const username = ref('');
 const password = ref('');
-const isAdmin = ref(false); // 勾选框保留用于前端判断
 const show1 = ref(false);
 
 const auth = useAuthStore();
@@ -24,14 +23,13 @@ const usernameRules = ref([
 // 登录方法
 async function validate() {
   try {
-    // 发送登录请求
-    const res = await fetch('http://localhost:8080/api/user/login', {
+    // 发送登录请求到新的认证API
+    const res = await fetch('http://localhost:5000/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: username.value,
-        password: password.value,
-        isAdmin: isAdmin.value ? 1 : 0
+        password: password.value
       })
     });
 
@@ -39,27 +37,28 @@ async function validate() {
     console.log('登录返回数据:', data);
 
     if (data.code === 1 && data.token) {
-      // ✅ 关键：把真实后端返回的 token 存入 localStorage（不要 stringify，不要加 Bearer）
+      // ✅ 保存token到localStorage
       localStorage.setItem('token', String(data.token));
       console.log('[SAVE TOKEN]', String(data.token).slice(0, 60) + '...');
+      
       // 登录成功，调用 Pinia 保存用户信息 + token
       auth.loginSuccess({
         token: data.token,
         user: {
-          id: 0, // 后端未返回 ID，可暂时用 0
-          name: username.value,
-          role: isAdmin.value ? 'admin' : 'user'
+          id: data.user.id,
+          name: data.user.displayName || data.user.username,
+          role: data.user.role
         }
       });
 
-      alert('登录成功');
+      alert('登录成功！');
     } else {
-      alert('登录失败，请检查用户名/密码');
+      alert(data.message || '登录失败，请检查用户名/密码');
     }
 
   } catch (err) {
     console.error(err);
-    alert('网络或服务器错误');
+    alert('网络或服务器错误，请确保后端服务已启动');
   }
 }
 </script>
@@ -98,13 +97,6 @@ async function validate() {
     ></v-text-field>
 
     <div class="d-sm-flex align-center mt-2 mb-7 mb-sm-0">
-      <v-checkbox
-        v-model="isAdmin"
-        label="我是管理员"
-        color="primary"
-        hide-details
-      ></v-checkbox>
-
       <div class="ml-auto">
         <a href="javascript:void(0)" class="text-primary text-decoration-none">
           Forgot password?
@@ -124,14 +116,14 @@ async function validate() {
     </v-btn>
   </Form>
 
-  <div class="mt-5 text-right">
+  <div class="mt-5 text-center">
     <v-divider />
     <v-btn
       variant="plain"
       to="/register"
-      class="mt-2 text-capitalize mr-n2"
+      class="mt-2 text-capitalize"
     >
-      Don't Have an account?
+      创建新管理员
     </v-btn>
   </div>
 </template>

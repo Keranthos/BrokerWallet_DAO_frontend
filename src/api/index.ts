@@ -105,6 +105,7 @@ export const api = {
       description: string;
       imageData: string;
       attributes: string;
+      nftImageId?: number;  // 可选：NFT记录ID，用于更新数据库
     }) => apiClient.post('/api/blockchain/nft/mint', data),
     
     // 查询用户NFT

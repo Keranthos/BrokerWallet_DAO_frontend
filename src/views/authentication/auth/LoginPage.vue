@@ -9,23 +9,21 @@
       <v-form @submit.prevent="handleLogin" ref="form">
         <v-text-field
           v-model="username"
-          label="用户名"
+          label="👤 用户名"
           variant="outlined"
           class="mb-6"
           :rules="[rules.required]"
-          prepend-inner-icon="mdi-account"
           density="comfortable"
           style="font-size: 18px;"
         />
         
         <v-text-field
           v-model="password"
-          label="密码"
+          label="🔒 密码"
           type="password"
           variant="outlined"
           class="mb-8"
           :rules="[rules.required]"
-          prepend-inner-icon="mdi-lock"
           density="comfortable"
           style="font-size: 18px;"
         />
@@ -53,10 +51,18 @@
         {{ error }}
       </v-alert>
       
-      <div class="text-center mt-8">
-        <v-chip color="info" variant="outlined" size="large">
-          💡 测试账号：admin / admin123
-        </v-chip>
+      <v-divider class="my-6"></v-divider>
+      
+      <div class="text-center">
+        <p class="text-body-2 text-grey-darken-1 mb-3">还没有管理员账户？</p>
+        <v-btn
+          variant="outlined"
+          color="primary"
+          size="large"
+          @click="goToRegister"
+        >
+          ➕ 创建新管理员
+        </v-btn>
       </div>
     </v-card>
   </div>
@@ -64,13 +70,15 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
+const router = useRouter()
 const auth = useAuthStore()
 
 const form = ref()
-const username = ref('admin')
-const password = ref('admin123')
+const username = ref('')
+const password = ref('')
 const loading = ref(false)
 const error = ref('')
 
@@ -86,27 +94,44 @@ const handleLogin = async () => {
   error.value = ''
 
   try {
-    // 模拟登录API调用
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    if (username.value === 'admin' && password.value === 'admin123') {
-      // 模拟成功登录
+    // 调用真实的登录API
+    const res = await fetch('http://localhost:5000/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: username.value,
+        password: password.value
+      })
+    })
+
+    const data = await res.json()
+
+    if (data.code === 1 && data.token) {
+      // 保存token到localStorage
+      localStorage.setItem('token', String(data.token))
+      
+      // 登录成功，保存用户信息
       auth.loginSuccess({
-        token: 'mock-admin-token-' + Date.now(),
+        token: data.token,
         user: {
-          id: 1,
-          name: '管理员',
-          role: 'admin'
+          id: data.user.id,
+          name: data.user.displayName || data.user.username,
+          role: data.user.role
         }
       })
     } else {
-      error.value = '用户名或密码错误'
+      error.value = data.message || '用户名或密码错误'
     }
   } catch (err: any) {
-    error.value = err.message || '登录失败，请稍后重试'
+    console.error('登录失败:', err)
+    error.value = '网络或服务器错误，请确保后端服务已启动'
   } finally {
     loading.value = false
   }
+}
+
+const goToRegister = () => {
+  router.push('/register')
 }
 </script>
 
